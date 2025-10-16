@@ -6,9 +6,9 @@ on:
 
 env:
   IMAGE_NAME: resultapp
-  ACR_NAME: acrtestsurjeet   # replace with your ACR name (without .azurecr.io)
+  ACR_NAME: acrtestsurjeet
   RESOURCE_GROUP: testrg_surjeet
-  VM_DEPLOY_PATH: /home/azureuser/app   # change if your app path differs
+  VM_DEPLOY_PATH: /home/azureuser/app
 
 jobs:
   build-and-deploy:
@@ -24,8 +24,13 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Log in to Azure Container Registry
+        run: az acr login --name $ACR_NAME
+
+      - name: Get ACR credentials
+        id: get_acr_creds
         run: |
-          az acr login --name $ACR_NAME
+          echo "ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username -o tsv)" >> $GITHUB_ENV
+          echo "ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query passwords[0].value -o tsv)" >> $GITHUB_ENV
 
       - name: Build and Push image to ACR
         run: |
@@ -41,8 +46,9 @@ jobs:
           host: ${{ secrets.APIHUB_VM_HOST }}
           username: ${{ secrets.APIHUB_VM_USER }}
           password: ${{ secrets.APIHUB_VM_PASSWORD }}
+          envs: ACR_NAME,IMAGE_NAME,ACR_USERNAME,ACR_PASSWORD
           script: |
-            sudo docker login $ACR_NAME.azurecr.io -u $(az acr credential show --name $ACR_NAME --query username -o tsv) -p $(az acr credential show --name $ACR_NAME --query passwords[0].value -o tsv)
+            sudo docker login $ACR_NAME.azurecr.io -u $ACR_USERNAME -p $ACR_PASSWORD
             sudo docker pull $ACR_NAME.azurecr.io/$IMAGE_NAME:latest
             sudo docker stop $IMAGE_NAME || true
             sudo docker rm $IMAGE_NAME || true
